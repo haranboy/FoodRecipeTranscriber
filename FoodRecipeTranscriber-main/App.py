@@ -7,19 +7,12 @@ import os
 from dotenv import load_dotenv
 import google.api_core.exceptions as google_exceptions
 
-# Add this before the API call to debug
-if st.checkbox("Debug mode"):
-    st.text_area("Transcript sample (first 500 chars)", transcript[:500])
-    st.write(f"Total transcript length: {len(transcript)} characters")
-    
 # Load Gemini API key from Streamlit secrets or .env
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
-
 if not GEMINI_API_KEY:
     st.error("Gemini API key not found. Please set it in Streamlit secrets or .env file.")
     st.stop()
-
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Try reducing the maximum transcript length
@@ -41,10 +34,14 @@ def transcribe_audio(audio_path):
     result = model.transcribe(audio_path)
     return result['text']
 
-# Modify your summarize_transcript function to better handle the API request
 def summarize_transcript(transcript):
     # Clean the transcript text to remove problematic characters
     transcript = transcript[:MAX_TRANSCRIPT_CHARS].strip()
+    
+    # Debug mode to inspect the transcript
+    if st.session_state.get('debug_mode', False):
+        st.text_area("Transcript sample (first 500 chars)", transcript[:500])
+        st.write(f"Total transcript length: {len(transcript)} characters")
     
     prompt = f"""
     From the following cooking video transcript, extract:
@@ -72,13 +69,17 @@ def summarize_transcript(transcript):
         # You could add debug logging here
         st.write(f"Prompt length was: {len(prompt)} characters")
         raise RuntimeError(f"Gemini API error: {str(e)}")
-        
+
 # Streamlit UI
 st.title("🍳 Recipe Video Summarizer")
 st.write("Enter a YouTube cooking video link to extract the ingredients and step-by-step instructions.")
 
-video_url = st.text_input("Your Video URL Link")
+# Add debug checkbox in the UI properly
+if 'debug_mode' not in st.session_state:
+    st.session_state.debug_mode = False
+st.session_state.debug_mode = st.checkbox("Debug mode", value=st.session_state.debug_mode)
 
+video_url = st.text_input("Your Video URL Link")
 if video_url and st.button("Summarize Recipe"):
     try:
         with st.spinner("Downloading video..."):
@@ -89,7 +90,6 @@ if video_url and st.button("Summarize Recipe"):
             transcript = transcribe_audio(audio_path)
         with st.spinner("Summarizing recipe with Gemini..."):
             summary = summarize_transcript(transcript)
-
         st.success("Recipe Summary Ready!")
         st.markdown(summary)
     except Exception as e:
