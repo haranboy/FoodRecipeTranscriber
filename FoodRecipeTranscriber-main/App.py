@@ -1,13 +1,10 @@
 import streamlit as st
-from pytube import YouTube
-import pytube.exceptions
 import subprocess
 import whisper
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import google.api_core.exceptions as google_exceptions
-import requests
 
 # Load Gemini API key from Streamlit secrets or .env
 load_dotenv()
@@ -20,42 +17,39 @@ genai.configure(api_key=GEMINI_API_KEY)
 # Try reducing the maximum transcript length
 MAX_TRANSCRIPT_CHARS = 10000  # Try a smaller limit first
 
-def stream_audio_from_youtube(url, output_path="audio.mp3"):
-    """Stream and download audio-only from YouTube with better error handling"""
+def download_audio_with_ytdlp(url, output_path="audio.mp3"):
+    """Download audio using yt-dlp (more reliable than pytube)"""
     try:
-        # Try with pytube first
-        yt = YouTube(url)
-        # Get audio-only stream instead of video
-        stream = yt.streams.filter(only_audio=True).first()
+        # First, install yt-dlp if not already installed
+        subprocess.run(["pip", "install", "yt-dlp"], 
+                      stdout=subprocess.PIPE, 
+                      stderr=subprocess.PIPE)
         
-        if stream:
-            # Download audio to a temporary file
-            stream.download(filename=output_path)
+        # Use yt-dlp to download just the audio
+        command = [
+            "yt-dlp", 
+            "-x",  # Extract audio
+            "--audio-format", "mp3",  # Convert to mp3
+            "-o", output_path,  # Output filename
+            url  # YouTube URL
+        ]
+        
+        result = subprocess.run(command, 
+                              stdout=subprocess.PIPE, 
+                              stderr=subprocess.PIPE,
+                              text=True)
+        
+        if result.returncode != 0:
+            st.error(f"yt-dlp error: {result.stderr}")
+            raise Exception(f"yt-dlp failed: {result.stderr}")
+        
+        if os.path.exists(output_path):
             return output_path
         else:
-            raise Exception("No audio stream found")
-            
-    except pytube.exceptions.PytubeError as e:
-        # Log the specific pytube error
-        st.error(f"PyTube error: {str(e)}")
-        
-        # Fall back to using youtube-dl via subprocess
-        st.info("Trying alternative download method...")
-        try:
-            # Use youtube-dl instead (must be installed in the environment)
-            command = ["youtube-dl", "-x", "--audio-format", "mp3", "-o", output_path, url]
-            subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            
-            if os.path.exists(output_path):
-                return output_path
-            else:
-                raise Exception("Failed to download audio with youtube-dl")
-                
-        except Exception as e2:
-            raise Exception(f"All download methods failed. Error: {str(e2)}")
+            raise Exception("yt-dlp completed but file not found")
             
     except Exception as e:
-        raise Exception(f"Failed to stream audio: {str(e)}")
+        raise Exception(f"Failed to download audio: {str(e)}")
 
 def transcribe_audio(audio_path):
     model = whisper.load_model("base")
@@ -110,8 +104,8 @@ st.session_state.debug_mode = st.checkbox("Debug mode", value=st.session_state.d
 video_url = st.text_input("Your Video URL Link")
 if video_url and st.button("Summarize Recipe"):
     try:
-        with st.spinner("Streaming audio from YouTube..."):
-            audio_path = stream_audio_from_youtube(video_url)
+        with st.spinner("Downloading audio from YouTube..."):
+            audio_path = download_audio_with_ytdlp(video_url)
         with st.spinner("Transcribing audio..."):
             transcript = transcribe_audio(audio_path)
         with st.spinner("Summarizing recipe with Gemini..."):
