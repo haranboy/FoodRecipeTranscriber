@@ -5,3 +5,4 @@ google-generativeai
 whisper
 ffmpeg-python
 python-dotenv
+yt-dlp
