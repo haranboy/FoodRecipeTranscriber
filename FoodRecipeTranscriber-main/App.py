@@ -17,6 +17,8 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
+MAX_TRANSCRIPT_CHARS = 20000  # Roughly ~5000 tokens
+
 def download_video(url, output_path="video.mp4"):
     yt = YouTube(url)
     stream = yt.streams.filter(file_extension='mp4', progressive=True).first()
@@ -34,6 +36,10 @@ def transcribe_audio(audio_path):
     return result['text']
 
 def summarize_transcript(transcript):
+    # Trim transcript to roughly 5000 token equivalent (~20000 characters)
+    if len(transcript) > MAX_TRANSCRIPT_CHARS:
+        transcript = transcript[:MAX_TRANSCRIPT_CHARS]
+
     prompt = f"""
     From the following cooking video transcript, extract:
     1. A list of ingredients.
