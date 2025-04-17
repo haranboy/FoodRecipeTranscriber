@@ -18,16 +18,18 @@ genai.configure(api_key=GEMINI_API_KEY)
 # Try reducing the maximum transcript length
 MAX_TRANSCRIPT_CHARS = 10000  # Try a smaller limit first
 
-def download_video(url, output_path="video.mp4"):
-    yt = YouTube(url)
-    stream = yt.streams.filter(file_extension='mp4', progressive=True).first()
-    stream.download(filename=output_path)
-    return output_path
-
-def extract_audio(video_path, audio_path="audio.mp3"):
-    command = ["ffmpeg", "-y", "-i", video_path, "-q:a", "0", "-map", "a", audio_path]
-    subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return audio_path
+def stream_audio_from_youtube(url, output_path="audio.mp3"):
+    """Stream and download audio-only from YouTube instead of the full video"""
+    try:
+        yt = YouTube(url)
+        # Get audio-only stream instead of video
+        stream = yt.streams.filter(only_audio=True).first()
+        
+        # Download audio to a temporary file
+        stream.download(filename=output_path)
+        return output_path
+    except Exception as e:
+        raise Exception(f"Failed to stream audio: {e}")
 
 def transcribe_audio(audio_path):
     model = whisper.load_model("base")
@@ -82,10 +84,8 @@ st.session_state.debug_mode = st.checkbox("Debug mode", value=st.session_state.d
 video_url = st.text_input("Your Video URL Link")
 if video_url and st.button("Summarize Recipe"):
     try:
-        with st.spinner("Downloading video..."):
-            video_path = download_video(video_url)
-        with st.spinner("Extracting audio..."):
-            audio_path = extract_audio(video_path)
+        with st.spinner("Streaming audio from YouTube..."):
+            audio_path = stream_audio_from_youtube(video_url)
         with st.spinner("Transcribing audio..."):
             transcript = transcribe_audio(audio_path)
         with st.spinner("Summarizing recipe with Gemini..."):
