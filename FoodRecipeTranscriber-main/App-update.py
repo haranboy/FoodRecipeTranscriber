@@ -4,126 +4,165 @@ import whisper
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
-import google.api_core.exceptions as google_exceptions
-import ffmpeg
+import re
+from typing import Optional
 
-# Load Gemini API key from Streamlit secrets or .env
+# Configuration
 load_dotenv()
+MAX_TRANSCRIPT_CHARS = 10000
+SUPPORTED_WHISPER_MODELS = ["tiny", "base", "small", "medium", "large"]
+DEFAULT_MODEL = "base"
+
+# Load Gemini API key
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") or st.secrets.get("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     st.error("Gemini API key not found. Please set it in Streamlit secrets or .env file.")
     st.stop()
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Try reducing the maximum transcript length
-MAX_TRANSCRIPT_CHARS = 10000  # Try a smaller limit first
+@st.cache_resource
+def load_whisper_model(model_size: str = DEFAULT_MODEL):
+    """Load and cache the Whisper model"""
+    if model_size not in SUPPORTED_WHISPER_MODELS:
+        raise ValueError(f"Unsupported model size. Choose from: {SUPPORTED_WHISPER_MODELS}")
+    return whisper.load_model(model_size)
 
-def download_audio_with_ytdlp(url, output_path="audio.webm"):
-    """Download audio using yt-dlp without requiring FFmpeg conversion"""
+def is_valid_youtube_url(url: str) -> bool:
+    """Validate YouTube URL format"""
+    youtube_regex = (
+        r'(https?://)?(www\.)?'
+        '(youtube|youtu|youtube-nocookie)\.(com|be)/'
+        '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})'
+    )
+    return re.match(youtube_regex, url) is not None
+
+def download_audio_with_ytdlp(url: str, output_path: str = "audio.webm") -> str:
+    """Download audio using yt-dlp"""
     try:
-        # First, install yt-dlp if not already installed
-        subprocess.run(["pip", "install", "yt-dlp"], 
-                      stdout=subprocess.PIPE, 
-                      stderr=subprocess.PIPE)
+        subprocess.run(["pip", "install", "yt-dlp"], check=True, capture_output=True)
         
-        # Use yt-dlp to download just the audio in its native format
-        # (avoiding the need for FFmpeg conversion)
         command = [
             "yt-dlp", 
-            "-f", "bestaudio",  # Best audio format
-            "--no-playlist",    # Don't download playlists
-            "-o", output_path,  # Output filename
-            url                 # YouTube URL
+            "-f", "bestaudio",
+            "--no-playlist",
+            "-o", output_path,
+            "--extract-audio",
+            "--audio-format", "webm",
+            url
         ]
         
-        result = subprocess.run(command, 
-                              stdout=subprocess.PIPE, 
-                              stderr=subprocess.PIPE,
-                              text=True)
+        result = subprocess.run(command, check=True, capture_output=True, text=True)
         
-        if result.returncode != 0:
-            st.error(f"yt-dlp error: {result.stderr}")
-            raise Exception(f"yt-dlp failed: {result.stderr}")
-        
-        if os.path.exists(output_path):
-            return output_path
-        else:
-            raise Exception("yt-dlp completed but file not found")
+        if not os.path.exists(output_path):
+            raise FileNotFoundError("Download completed but file not found")
             
+        return output_path
+            
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Download failed: {e.stderr}") from e
     except Exception as e:
-        raise Exception(f"Failed to download audio: {str(e)}")
+        raise RuntimeError(f"Download error: {str(e)}") from e
 
-def transcribe_audio(audio_path):
-    # Set ffmpeg path for local environment
-    os.environ["PATH"] += os.pathsep + os.path.join(os.getcwd(), "ffmpeg")
+def transcribe_audio(audio_path: str, model_size: str = DEFAULT_MODEL) -> str:
+    """Transcribe audio using Whisper"""
+    try:
+        model = load_whisper_model(model_size)
+        result = model.transcribe(audio_path)
+        return result['text']
+    except Exception as e:
+        raise RuntimeError(f"Transcription failed: {str(e)}") from e
 
-    # Load the Whisper model locally
-    model = whisper.load_model("base")  # Change the model size if needed
-    result = model.transcribe(audio_path)
-    return result['text']
-
-def summarize_transcript(transcript):
-    # Clean the transcript text to remove problematic characters
+def summarize_transcript(transcript: str) -> str:
+    """Summarize transcript using Gemini"""
     transcript = transcript[:MAX_TRANSCRIPT_CHARS].strip()
     
-    # Debug mode to inspect the transcript
     if st.session_state.get('debug_mode', False):
-        st.text_area("Transcript sample (first 500 chars)", transcript[:500])
-        st.write(f"Total transcript length: {len(transcript)} characters")
+        with st.expander("Debug: Transcript Sample"):
+            st.text_area("First 500 characters", transcript[:500], height=200)
+            st.write(f"Total length: {len(transcript)} characters")
     
     prompt = f"""
-    From the following cooking video transcript, extract:
-    1. A list of ingredients.
-    2. Step-by-step instructions.
+    Extract the following from this cooking video transcript:
+    1. A clear list of ingredients with measurements
+    2. Detailed step-by-step instructions
+    3. Cooking time and difficulty level if mentioned
+    
+    Format the response using markdown with clear headings.
+    
     Transcript:
     {transcript}
     """
     
     try:
         model = genai.GenerativeModel("gemini-1.5-pro")
-        # Add temperature and max output tokens parameters
         response = model.generate_content(
-            prompt, 
-            stream=False,
+            prompt,
             generation_config={
-                "temperature": 0.7,
-                "max_output_tokens": 1024,
+                "temperature": 0.3,  # Lower for more factual responses
+                "max_output_tokens": 2048,
             }
         )
         return response.text.strip()
     except Exception as e:
-        # Log more details about the error
-        st.error(f"Gemini API error details: {type(e).__name__}: {str(e)}")
-        # You could add debug logging here
-        st.write(f"Prompt length was: {len(prompt)} characters")
-        raise RuntimeError(f"Gemini API error: {str(e)}")
+        st.error(f"Summarization error: {str(e)}")
+        raise
 
-# Streamlit UI
-st.title("🍳 Recipe Video Summarizer")
-st.write("Enter a YouTube cooking video link to extract the ingredients and step-by-step instructions.")
-
-# Add debug checkbox in the UI properly
-if 'debug_mode' not in st.session_state:
-    st.session_state.debug_mode = False
-st.session_state.debug_mode = st.checkbox("Debug mode", value=st.session_state.debug_mode)
-
-video_url = st.text_input("Your Video URL Link")
-if video_url and st.button("Summarize Recipe"):
-    try:
-        with st.spinner("Downloading audio from YouTube..."):
-            audio_path = download_audio_with_ytdlp(video_url)
-        with st.spinner("Transcribing audio..."):
-            transcript = transcribe_audio(audio_path)
-        with st.spinner("Summarizing recipe with Gemini..."):
-            summary = summarize_transcript(transcript)
-        st.success("Recipe Summary Ready!")
-        st.markdown(summary)
-        
-        # Cleanup temporary files
-        if os.path.exists(audio_path):
+def main():
+    st.title("🍳 Recipe Video Summarizer")
+    st.write("Extract ingredients and instructions from cooking videos")
+    
+    # Settings sidebar
+    with st.sidebar:
+        st.header("Settings")
+        model_size = st.selectbox(
+            "Whisper Model Size",
+            SUPPORTED_WHISPER_MODELS,
+            index=SUPPORTED_WHISPER_MODELS.index(DEFAULT_MODEL),
+            help="Larger models are more accurate but slower"
+        )
+        st.session_state.debug_mode = st.checkbox(
+            "Debug mode",
+            value=st.session_state.get('debug_mode', False)
+        )
+    
+    # Main interface
+    video_url = st.text_input(
+        "YouTube Video URL",
+        placeholder="https://www.youtube.com/watch?v=...",
+        help="Paste a link to a cooking video"
+    )
+    
+    if st.button("Summarize Recipe"):
+        if not video_url:
+            st.warning("Please enter a YouTube URL")
+            return
+            
+        if not is_valid_youtube_url(video_url):
+            st.error("Please enter a valid YouTube URL")
+            return
+            
+        try:
+            with st.spinner("Downloading audio..."):
+                audio_path = download_audio_with_ytdlp(video_url)
+                
+            with st.spinner("Transcribing audio..."):
+                transcript = transcribe_audio(audio_path, model_size)
+                
+            with st.spinner("Summarizing recipe..."):
+                summary = summarize_transcript(transcript)
+                
+            st.success("Done!")
+            st.markdown(summary)
+            
+            # Cleanup
             try:
-                os.remove(audio_path)
+                if os.path.exists(audio_path):
+                    os.remove(audio_path)
             except:
                 pass
-    except Exception as e:
-        st.error(f"An error occurred: {e}")
+                
+        except Exception as e:
+            st.error(f"Processing failed: {str(e)}")
+
+if __name__ == "__main__":
+    main()
