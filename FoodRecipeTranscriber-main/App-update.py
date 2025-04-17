@@ -3,6 +3,7 @@ import subprocess
 import whisper
 import google.generativeai as genai
 import os
+import sys
 from dotenv import load_dotenv
 import re
 from typing import Optional
