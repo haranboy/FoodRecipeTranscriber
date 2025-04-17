@@ -5,6 +5,7 @@ import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import google.api_core.exceptions as google_exceptions
+import ffmpeg
 
 # Load Gemini API key from Streamlit secrets or .env
 load_dotenv()
@@ -53,6 +54,9 @@ def download_audio_with_ytdlp(url, output_path="audio.webm"):
         raise Exception(f"Failed to download audio: {str(e)}")
 
 def transcribe_audio(audio_path):
+    # Set ffmpeg path for local environment
+    os.environ["PATH"] += os.pathsep + os.path.join(os.getcwd(), "ffmpeg")
+
     # Load the Whisper model locally
     model = whisper.load_model("base")  # Change the model size if needed
     result = model.transcribe(audio_path)
