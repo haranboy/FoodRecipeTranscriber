@@ -48,13 +48,21 @@ def summarize_transcript(transcript):
     Transcript:
     {transcript}
     """
+
+    st.info(f"Prompt length: {len(prompt)} characters")  # Debugging prompt size
+
     try:
         model = genai.GenerativeModel("gemini-1.5-pro")
-        response = model.generate_content(prompt)
+        response = model.generate_content(prompt, stream=False)
         return response.text.strip()
     except google_exceptions.InvalidArgument as e:
+        st.error("Gemini InvalidArgument error: " + str(e.message))
         raise RuntimeError(f"Gemini API error: {e.message}")
+    except google_exceptions.GoogleAPIError as e:
+        st.error("Gemini GoogleAPI error: " + str(e))
+        raise RuntimeError(f"Gemini API error: {e}")
     except Exception as e:
+        st.error("Unexpected Gemini API error: " + str(e))
         raise RuntimeError(f"Unexpected error with Gemini API: {str(e)}")
 
 # Streamlit UI
