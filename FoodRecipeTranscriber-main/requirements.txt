@@ -2,7 +2,7 @@ streamlit
 pytube
 openai
 google-generativeai
-whisper
+openai-whisper
 ffmpeg-python
 python-dotenv
 yt-dlp
