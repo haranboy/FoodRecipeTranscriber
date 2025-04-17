@@ -26,5 +26,3 @@ def setup_ffmpeg():
         except subprocess.CalledProcessError:
             st.error("Could not install ffmpeg-python fallback")
 
-# Call this early in your app
-setup_ffmpeg()
