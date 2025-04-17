@@ -9,6 +9,18 @@ import re
 from typing import Optional
 
 def setup_ffmpeg():
+    os.environ["FFMPEG_PATH"] = "/usr/local/bin/ffmpeg"
+    os.environ["FFPROBE_PATH"] = "/usr/local/bin/ffprobe"
+
+    command = [
+    "yt-dlp",
+    "--ffmpeg-location", ffmpeg_path,
+    "-x",  # Extract audio
+    "--audio-format", "best",  # Let yt-dlp choose best format
+    "--output", output_path,
+    url,
+    ]
+    
     """Ensure FFmpeg is available in the system path"""
     try:
         subprocess.run(["ffmpeg", "-version"], 
