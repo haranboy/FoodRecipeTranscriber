@@ -1,4 +1,3 @@
-# === app.py (Streamlit Cloud-ready) ===
 import streamlit as st
 from pytube import YouTube
 import subprocess
@@ -48,9 +47,11 @@ def summarize_transcript(transcript):
 
 # Streamlit UI
 st.title("🍳 Recipe Video Summarizer")
-video_url = st.text_input("Paste a YouTube cooking video link:")
+st.write("Enter a YouTube cooking video link to extract the ingredients and step-by-step instructions.")
 
-if st.button("Summarize Recipe"):
+video_url = st.text_input("YouTube Video URL")
+
+if video_url and st.button("Summarize Recipe"):
     try:
         with st.spinner("Downloading video..."):
             video_path = download_video(video_url)
@@ -61,7 +62,7 @@ if st.button("Summarize Recipe"):
         with st.spinner("Summarizing recipe with Gemini..."):
             summary = summarize_transcript(transcript)
 
-        st.success("Done!")
+        st.success("Recipe Summary Ready!")
         st.markdown(summary)
     except Exception as e:
         st.error(f"An error occurred: {e}")
