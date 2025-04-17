@@ -6,6 +6,9 @@ import os
 from dotenv import load_dotenv
 import re
 from typing import Optional
+from ff_setup import setup_ffmpeg
+
+setup_ffmpeg()
 
 # Configuration
 load_dotenv()
