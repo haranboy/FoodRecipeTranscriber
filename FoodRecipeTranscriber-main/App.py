@@ -1,11 +1,13 @@
 import streamlit as st
 from pytube import YouTube
+import pytube.exceptions
 import subprocess
 import whisper
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
 import google.api_core.exceptions as google_exceptions
+import requests
 
 # Load Gemini API key from Streamlit secrets or .env
 load_dotenv()
@@ -19,17 +21,41 @@ genai.configure(api_key=GEMINI_API_KEY)
 MAX_TRANSCRIPT_CHARS = 10000  # Try a smaller limit first
 
 def stream_audio_from_youtube(url, output_path="audio.mp3"):
-    """Stream and download audio-only from YouTube instead of the full video"""
+    """Stream and download audio-only from YouTube with better error handling"""
     try:
+        # Try with pytube first
         yt = YouTube(url)
         # Get audio-only stream instead of video
         stream = yt.streams.filter(only_audio=True).first()
         
-        # Download audio to a temporary file
-        stream.download(filename=output_path)
-        return output_path
+        if stream:
+            # Download audio to a temporary file
+            stream.download(filename=output_path)
+            return output_path
+        else:
+            raise Exception("No audio stream found")
+            
+    except pytube.exceptions.PytubeError as e:
+        # Log the specific pytube error
+        st.error(f"PyTube error: {str(e)}")
+        
+        # Fall back to using youtube-dl via subprocess
+        st.info("Trying alternative download method...")
+        try:
+            # Use youtube-dl instead (must be installed in the environment)
+            command = ["youtube-dl", "-x", "--audio-format", "mp3", "-o", output_path, url]
+            subprocess.run(command, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            
+            if os.path.exists(output_path):
+                return output_path
+            else:
+                raise Exception("Failed to download audio with youtube-dl")
+                
+        except Exception as e2:
+            raise Exception(f"All download methods failed. Error: {str(e2)}")
+            
     except Exception as e:
-        raise Exception(f"Failed to stream audio: {e}")
+        raise Exception(f"Failed to stream audio: {str(e)}")
 
 def transcribe_audio(audio_path):
     model = whisper.load_model("base")
@@ -92,5 +118,12 @@ if video_url and st.button("Summarize Recipe"):
             summary = summarize_transcript(transcript)
         st.success("Recipe Summary Ready!")
         st.markdown(summary)
+        
+        # Cleanup temporary files
+        if os.path.exists(audio_path):
+            try:
+                os.remove(audio_path)
+            except:
+                pass
     except Exception as e:
         st.error(f"An error occurred: {e}")
