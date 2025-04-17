@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pytube
+openai
+whisper
+ffmpeg-python

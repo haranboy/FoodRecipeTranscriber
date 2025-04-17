@@ -1,0 +1,1 @@
+A web app that takes a YouTube cooking video link and extracts ingredients and step-by-step cooking instructions.
