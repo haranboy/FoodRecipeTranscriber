@@ -65,32 +65,62 @@ def is_valid_youtube_url(url: str) -> bool:
     return re.match(youtube_regex, url) is not None
 
 def download_audio_with_ytdlp(url: str, output_path: str = "audio.webm") -> str:
-    """Download audio using yt-dlp"""
+    """Download audio using yt-dlp with proper format handling"""
     try:
-        subprocess.run(["pip", "install", "yt-dlp"], check=True, capture_output=True)
-        
+        # Install yt-dlp if not available
+        subprocess.run(
+            [sys.executable, "-m", "pip", "install", "yt-dlp"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        # Use yt-dlp to download best audio and convert to webm
         command = [
-            "yt-dlp", 
-            "-f", "bestaudio",
-            "--no-playlist",
-            "-o", output_path,
-            "--extract-audio",
-            "--audio-format", "webm",
-            url
+            "yt-dlp",
+            "-x",  # Extract audio
+            "--audio-format", "best",  # Let yt-dlp choose best format
+            "--output", output_path,
+            url,
         ]
-        
-        result = subprocess.run(command, check=True, capture_output=True, text=True)
-        
+
+        result = subprocess.run(
+            command,
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+        if not os.path.exists(output_path):
+            # Try alternative approach if direct download fails
+            temp_path = "temp_audio"
+            command = [
+                "yt-dlp",
+                "-x",
+                "--audio-format", "best",
+                "--output", temp_path,
+                url,
+            ]
+            subprocess.run(command, check=True)
+            
+            # Find the downloaded file and rename it
+            for f in os.listdir():
+                if f.startswith(temp_path):
+                    os.rename(f, output_path)
+                    break
+
         if not os.path.exists(output_path):
             raise FileNotFoundError("Download completed but file not found")
-            
+
         return output_path
-            
+
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Download failed: {e.stderr}") from e
+        error_msg = f"Download failed: {e.stderr}" if e.stderr else "Unknown download error"
+        raise RuntimeError(error_msg) from e
     except Exception as e:
         raise RuntimeError(f"Download error: {str(e)}") from e
-
+        
 def transcribe_audio(audio_path):
     # Ensure FFmpeg is available
     ensure_ffmpeg()
