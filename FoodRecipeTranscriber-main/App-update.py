@@ -20,6 +20,34 @@ if not GEMINI_API_KEY:
     st.stop()
 genai.configure(api_key=GEMINI_API_KEY)
 
+# Add this near the top of your imports
+import os
+import sys
+
+def ensure_ffmpeg():
+    """Ensure FFmpeg is available in the system path"""
+    try:
+        # Try importing ffmpeg to check if it's available
+        import ffmpeg
+    except ImportError:
+        # Install ffmpeg-python if not available
+        subprocess.run([sys.executable, "-m", "pip", "install", "ffmpeg-python"], 
+                      stdout=subprocess.PIPE, 
+                      stderr=subprocess.PIPE)
+    
+    # Check if ffmpeg binary is available
+    try:
+        subprocess.run(["ffmpeg", "-version"], 
+                      stdout=subprocess.PIPE, 
+                      stderr=subprocess.PIPE)
+    except FileNotFoundError:
+        # If on Streamlit sharing, use the built-in binary
+        st.warning("FFmpeg not found - using fallback method")
+        os.environ["PATH"] += os.pathsep + "/usr/local/bin"
+
+# Call this function before any Whisper operations
+ensure_ffmpeg()
+
 @st.cache_resource
 def load_whisper_model(model_size: str = DEFAULT_MODEL):
     """Load and cache the Whisper model"""
@@ -63,10 +91,18 @@ def download_audio_with_ytdlp(url: str, output_path: str = "audio.webm") -> str:
     except Exception as e:
         raise RuntimeError(f"Download error: {str(e)}") from e
 
-def transcribe_audio(audio_path: str, model_size: str = DEFAULT_MODEL) -> str:
-    """Transcribe audio using Whisper"""
+def transcribe_audio(audio_path):
+    # Ensure FFmpeg is available
+    ensure_ffmpeg()
+    
     try:
-        model = load_whisper_model(model_size)
+        # Load the Whisper model
+        model = whisper.load_model("base")
+        
+        # Add explicit FFmpeg path for Whisper
+        import whisper.audio
+        whisper.audio.ffmpeg_path = "ffmpeg"  # or "/usr/local/bin/ffmpeg" if needed
+        
         result = model.transcribe(audio_path)
         return result['text']
     except Exception as e:
