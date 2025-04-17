@@ -5,6 +5,7 @@ import whisper
 import google.generativeai as genai
 import os
 from dotenv import load_dotenv
+import google.api_core.exceptions as google_exceptions
 
 # Load Gemini API key from Streamlit secrets or .env
 load_dotenv()
@@ -41,9 +42,14 @@ def summarize_transcript(transcript):
     Transcript:
     {transcript}
     """
-    model = genai.GenerativeModel("gemini-1.5-pro")
-    response = model.generate_content(prompt)
-    return response.text.strip()
+    try:
+        model = genai.GenerativeModel("gemini-1.5-pro")
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except google_exceptions.InvalidArgument as e:
+        raise RuntimeError(f"Gemini API error: {e.message}")
+    except Exception as e:
+        raise RuntimeError(f"Unexpected error with Gemini API: {str(e)}")
 
 # Streamlit UI
 st.title("🍳 Recipe Video Summarizer")
