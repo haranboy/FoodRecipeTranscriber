@@ -17,21 +17,22 @@ genai.configure(api_key=GEMINI_API_KEY)
 # Try reducing the maximum transcript length
 MAX_TRANSCRIPT_CHARS = 10000  # Try a smaller limit first
 
-def download_audio_with_ytdlp(url, output_path="audio.mp3"):
-    """Download audio using yt-dlp (more reliable than pytube)"""
+def download_audio_with_ytdlp(url, output_path="audio.webm"):
+    """Download audio using yt-dlp without requiring FFmpeg conversion"""
     try:
         # First, install yt-dlp if not already installed
         subprocess.run(["pip", "install", "yt-dlp"], 
                       stdout=subprocess.PIPE, 
                       stderr=subprocess.PIPE)
         
-        # Use yt-dlp to download just the audio
+        # Use yt-dlp to download just the audio in its native format
+        # (avoiding the need for FFmpeg conversion)
         command = [
             "yt-dlp", 
-            "-x",  # Extract audio
-            "--audio-format", "mp3",  # Convert to mp3
+            "-f", "bestaudio",  # Best audio format
+            "--no-playlist",    # Don't download playlists
             "-o", output_path,  # Output filename
-            url  # YouTube URL
+            url                 # YouTube URL
         ]
         
         result = subprocess.run(command, 
