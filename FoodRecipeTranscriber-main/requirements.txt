@@ -2,7 +2,7 @@ streamlit
 pytube
 openai
 google-generativeai
-whisper
+whisper @ git+https://github.com/openai/whisper.git
 ffmpeg-python
 python-dotenv
 yt-dlp
