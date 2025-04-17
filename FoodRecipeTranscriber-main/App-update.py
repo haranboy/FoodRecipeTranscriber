@@ -6,8 +6,28 @@ import os
 from dotenv import load_dotenv
 import re
 from typing import Optional
-from ff_setup import setup_ffmpeg
 
+def setup_ffmpeg():
+    """Ensure FFmpeg is available in the system path"""
+    try:
+        subprocess.run(["ffmpeg", "-version"], 
+                      stdout=subprocess.PIPE, 
+                      stderr=subprocess.PIPE,
+                      check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError):
+        st.warning("FFmpeg not found in PATH - using fallback location")
+        os.environ["PATH"] += os.pathsep + "/usr/local/bin"
+        os.environ["FFMPEG_PATH"] = "/usr/local/bin/ffmpeg"
+        
+        try:
+            subprocess.run([sys.executable, "-m", "pip", "install", "ffmpeg-python"],
+                          check=True,
+                          stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE)
+        except subprocess.CalledProcessError:
+            st.error("Could not install ffmpeg-python fallback")
+
+# Call this right after your Streamlit imports
 setup_ffmpeg()
 
 # Configuration
