@@ -69,7 +69,7 @@ def summarize_transcript(transcript):
 st.title("🍳 Recipe Video Summarizer")
 st.write("Enter a YouTube cooking video link to extract the ingredients and step-by-step instructions.")
 
-video_url = st.text_input("YouTube Video URL")
+video_url = st.text_input("https://www.youtube.com/watch?v=5IwmuaKE7tA")
 
 if video_url and st.button("Summarize Recipe"):
     try:
