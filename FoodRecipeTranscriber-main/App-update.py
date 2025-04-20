@@ -9,7 +9,11 @@ import re
 from typing import Optional
 
 def setup_ffmpeg():
-    os.environ["FFMPEG_PATH"] = "/usr/local/bin/ffmpeg"
+    ffmpeg_path = os.getenv("FFMPEG_PATH", "/usr/local/bin/ffmpeg")  # Define ffmpeg_path
+    output_path = "audio.webm"  # Define output_path as a placeholder
+    url = "https://www.youtube.com/watch?v=5IwmuaKE7tA"  # Placeholder URL for demonstration
+
+    os.environ["FFMPEG_PATH"] = ffmpeg_path
     os.environ["FFPROBE_PATH"] = "/usr/local/bin/ffprobe"
 
     command = [
