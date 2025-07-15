@@ -1,0 +1,17 @@
+fsspec==2025.3.2
+datasets==3.0.0
+torch==2.6.0
+torchvision==0.21.0
+torchaudio --index-url https://download.pytorch.org/whl/cpu
+transformers==4.51.0
+peft>=0.7.0
+xformers==0.0.29.post3
+protobuf>=4.25.2
+trl
+bitsandbytes
+unsloth-zoo
+upgrade unsloth
+pydantic
+ngrok
+streamlit
+accelerate
