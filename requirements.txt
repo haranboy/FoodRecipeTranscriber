@@ -10,7 +10,7 @@ protobuf>=4.25.2
 trl
 bitsandbytes
 unsloth-zoo
-upgrade unsloth
+unsloth
 pydantic
 ngrok
 streamlit
