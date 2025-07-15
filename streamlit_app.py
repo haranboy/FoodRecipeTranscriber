@@ -1,5 +1,5 @@
 import streamlit as st
-import torch ngrok
+import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 from peft import AutoPeftModelForCausalLM # For loading merged PEFT models
 
